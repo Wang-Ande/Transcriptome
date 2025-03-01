@@ -1,5 +1,6 @@
 # 在线获取基因长度来计算FPKM
-
+#test
+# test2
 # 加载包 ----
 library(tidyverse)
 library(openxlsx)

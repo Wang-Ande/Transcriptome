@@ -1,8 +1,8 @@
-# 清空环境并设置工作路径 ----
+# 0. Rm workspace ----
 rm(list=ls())
 setwd("../AML_project/aml_analysis")
 
-# 加载R包 ----
+# 1. Library packages ----
 #BiocManager::install("msigdbr")
 library(org.Hs.eg.db)
 library(clusterProfiler)
@@ -14,54 +14,42 @@ library(dplyr)
 library(reshape2)
 library(ggplot2)
 library(ggridges)
-# 设置输出路径 ----
-# 设置输出目录 ----
-#dir.create("./03_result/GSEA/OCI_AML2/MsigDBR_GSEA/WT_2W/")
+
+# 2. Set output path ----
 dir <- "./03_result/GSEA/OCI_AML2/MsigDBR_GSEA/WT_2W/"
 
-# 输入差异基因集 ----
-data_gene <- read.csv("03_result/DE_limma/OCI_AML2_WT_vs_OCI_AML2_2W/DE.csv")
+# 3. Preranked gene list ----
+data_gene <- read.csv("03_result/DE_limma/MOLM13_2W_vs_MOLM13_WT/DE.csv")
 head(data_gene)
-colnames(data_gene) # 查看列名
-#colnames(data_gene)[which(colnames(data_gene) == "log2FoldChange")] <- "logFC"
-#colnames(data_gene)
+colnames(data_gene) 
 
-# 提取基因名（symbol） ----
+# 提取基因名（symbol）
 y <- data_gene$Row.names
 SYMBOL <- unlist(lapply(y,
                         function(y) strsplit(as.character(y),"\\|")[[1]][2]))
 id <- data.frame(SYMBOL)
 diff_gene <- cbind(id,data_gene)
+
 # 检查有无重复symbol
 duplicates <- duplicated(SYMBOL)
 a <- print(diff_gene[duplicates,])
 
 #如果有则进行以下处理
-#计算行平均值，按降序排列!!!
-matrix0 <- order(diff_gene$AveExpr,decreasing = T)
+# 只保留 SYMBOL 唯一且 AveExpr 最高的基因
+diff_gene <- diff_gene[order(diff_gene$AveExpr, decreasing = TRUE), ]  # 按 AveExpr 降序排序
+diff_gene <- diff_gene[!duplicated(diff_gene$SYMBOL), ]                # 去除重复 SYMBOL，保留第一个
 
-#调整表达谱的基因顺序
-expr_ordered=diff_gene[matrix0,]
-
-#对于有重复的基因，保留第一次出现的那个，即行平均值大的那个
-keep=!duplicated(expr_ordered$SYMBOL)#$Name是指基因名那一列
-
-#得到最后处理之后的表达谱矩阵
-diff_gene=expr_ordered[keep,]
-
-# 转换为ENTREZID命名 ----
-## 设置数据库 
+# switch to ENTREZID names 
+# Database set 
 GO_database <- 'org.Hs.eg.db'  # GO是org.Hs.eg.db数据库
-## gene ID转换 
+
+# gene ID转换 
 ENTREZID_gene <- bitr(diff_gene$SYMBOL, 
                       fromType = 'SYMBOL', 
                       toType = 'ENTREZID', 
                       OrgDb = GO_database)
-#ENTREZID_gene <- ENTREZID_gene %>%
-  #filter(ENTREZID != 100124696)
-#rownames(ENTREZID_gene) <- ENTREZID_gene$SYMBOL
 
-# genelist ----
+# rank gene list 
 data_all <- diff_gene %>% 
   inner_join(ENTREZID_gene,by="SYMBOL")
 data_all_sort <- data_all %>% 
@@ -69,28 +57,30 @@ data_all_sort <- data_all %>%
 geneList = data_all_sort$logFC 
 names(geneList) <- data_all_sort$ENTREZID 
 
-# KEGG_GSEA ---- 
+# 4. KEGG_GSEA ---- 
 # msigdbr基因集中没有KEGG集，需要单独做
-#dir.create("06_GSEASet/KEGG_GSEA")
-#dirkegg <- "06_GSEASet/KEGG_GSEA/"
-## 数据库设置 
+# database set 
 KEGG_database="hsa"
 
-## 富集分析 
+# gsea analysis 
 KEGG_GSEA <- gseKEGG(geneList, 
                      organism = KEGG_database, 
-                     pvalueCutoff = 0.05)
-KEGG_GSEA<- setReadable(KEGG_GSEA,        # 转换基因名
+                     pvalueCutoff = 0.05,
+                     eps = 0,
+                     nPermSimple = 10000) # 随机排列次数，提高结果准确性
+KEGG_GSEA<- setReadable(KEGG_GSEA,        # 转换可读基因名
                         OrgDb=org.Hs.eg.db,
                         keyType = 'ENTREZID')
 
-table(KEGG_GSEA@result$pvalue<0.05) # 统计有多少个通路富集出来
+table(KEGG_GSEA@result$pvalue<0.05)      # 查看有多少个通路富集出来
 
-# 结果导出
+# res output
 KEGG_results <- as.data.frame(KEGG_GSEA)
 write.csv(KEGG_results,file = paste0(dir,"KEGG_results.csv"),
           row.names = FALSE)
-## 可视化 
+save(KEGG_GSEA, file = paste0(dir,"gsea_result.RData"))   # S4 res
+
+# plot 
 load("./03_Result/GSEA/MOLM13/VEN_VS_WT/kegg_result.RData")
 
 pdf(paste0(dir,"gseaplot.pdf"),width = 11,height = 9)
@@ -99,7 +89,7 @@ pdf(paste0(dir,"gseaplot.pdf"),width = 11,height = 9)
 gseaplot2(KEGG_GSEA,c("hsa00565"),pvalue_table = T) 
 dev.off()
 
-# MsigDBR_GSEA ---- 
+# 5. MsigDBR_GSEA ---- 
 
 ## H ----
 sigDBGR_H <- msigdbr(species = "Homo sapiens",

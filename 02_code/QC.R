@@ -18,7 +18,7 @@ table(data_group$group)
 data_group <- as.data.frame(data_group)
 data_group <- data_group[-grep("4w",data_group$id),]          # 删除4周样本
 colnames(data_group)
-data_group$id <- gsub("cas9","",data_group$id)                # 去除id列多余信息
+data_group$id <- gsub("cas9","",data_group$id)                # 去除id多余信息
 table(data_group$group)
 rownames(data_group) <- data_group$id
 data_group <- data_group[-grep("MOLM13_WT_1",data_group$id),]

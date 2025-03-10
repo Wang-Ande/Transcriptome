@@ -6,14 +6,11 @@ library(openxlsx)
 library(readr)
 library(readxl)
 library(edgeR)
-if (!requireNamespace('corrplot', quietly = TRUE))
-  install.packages('corrplot')
 library(corrplot)
 
 # 2. Data input ----
 ## 2.1 Group input ----
-# 导入分组信息
-data_group <- read_excel("./01_data/Counts_data/aml_group_merge.xlsx")
+data_group <- read_excel("./01_data/Counts_data/Group_by_IC50.xlsx")
 table(data_group$group)
 data_group <- as.data.frame(data_group)
 data_group <- data_group[-grep("4w",data_group$id),]          # 删除4周样本

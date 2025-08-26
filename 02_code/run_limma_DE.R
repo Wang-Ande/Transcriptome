@@ -8,10 +8,6 @@ run_limma_DE <- function(exprSet, colData, group_1, group_2, log2,
   library(ggplot2)
   library(pheatmap)
   library(cowplot)
-  # check data: 检查exprSet和colData的列名与行名是否匹配
-  if (!all(colnames(exprSet) == rownames(colData))) {
-    stop("Error: The col names of 'exprSet' and the row names of 'colData' do not match.")
-  }
   
   # 创建输出目录
   output_dir <- paste0(dir, "/", group_1, "_vs_", group_2)
@@ -22,14 +18,22 @@ run_limma_DE <- function(exprSet, colData, group_1, group_2, log2,
   # 提取group_1和group_2的样本
   group_1_samples <- colData$id[colData$group == group_1]
   group_2_samples <- colData$id[colData$group == group_2]
-  colData <- colData[c(group_1_samples, group_2_samples),]
+  target_group <- colData[c(group_1_samples, group_2_samples),]
   
+  # 检查是否为整数型（counts）
+  if (!all(exprSet == floor(exprSet))) {
+    warning("Warning: The exprSet matrix contains non-integer values. Make sure you are inputting raw counts for voom.")
+  }
   # 确保样本顺序与exprSet列顺序一致
   target_data <- exprSet[, c(group_1_samples, group_2_samples)]
   
+  # check data: 检查exprSet和colData的列名与行名是否匹配
+  if (!identical(sort(colnames(target_data)), sort(rownames(target_group)))) {
+    stop("Error: The col names of 'target_data' and the row names of 'target_group' do not match.")
+  }
   
   # 分组因子化：确保分组因子正确
-  colData$group <- factor(colData$group, levels = c(group_1, group_2))
+  target_group$group <- factor(target_group$group, levels = c(group_1, group_2))
   
   
   # 可选log2转换
@@ -38,40 +42,39 @@ run_limma_DE <- function(exprSet, colData, group_1, group_2, log2,
   }
   
   # 设计矩阵
-  design <- model.matrix(~0 + factor(colData$group))
-  colnames(design) = levels(factor(colData$group))
+  design <- model.matrix(~0 + factor(target_group$group))
+  colnames(design) = levels(factor(target_group$group))
   rownames(design) = colnames(target_data)
   
-  # dge对象创建
-  # dge <- DGEList(counts = exprSet, group = colData$group)
+  # dge对象创建 (若log2为true，则更改！)
+  dge <- DGEList(counts = target_data, group = target_group$group)
   
   # filterByExpr()去除low genes 
   # keep <- filterByExpr(dge)
   # dge <- dge[keep, , keep.lib.sizes = FALSE]
   
   # 归一化 
-  #dge <- calcNormFactors(dge)
+  dge <- calcNormFactors(dge)
   
   # voom 方法标准化 
-  # pdf(file = paste0(output_dir, "/voom_plot.pdf"), width = 8, height = 6)
-  # v <- voom(dge, design, plot = TRUE, normalize = "none")
-  # dev.off()
-  # 如果是芯片数据、TPM数据或已标准化的数据，不需要再进行标准化！！！！！
+  pdf(file = paste0(output_dir, "/voom_plot.pdf"), width = 8, height = 6)
+  v <- voom(dge, design, plot = TRUE, normalize = "none") # 若噪声过大，则设置normalize = "quantile" （一般不用防止矫枉过正）
+  dev.off()
+  # 如果没有原始count数据，是芯片数据、TPM数据或已标准化的数据，不需要再进行标准化！！！！！
   # 可直接从这里开始进行差异分析
-  
-  v <- target_data
+  #v <- target_data
   
   # 使用线性模型进行拟合
   fit <- lmFit(v, design)
   
   # 指定对比组别 
-  con <- paste(levels(colData$group), collapse = "-")
+  con <- paste(levels(target_group$group), collapse = "-")
   # [1] "tumor-normal"
   
   # 创建对比矩阵 
   cont.matrix <- makeContrasts(contrasts = c(con), levels = design)
   fit2 <- contrasts.fit(fit, cont.matrix)
-  fit2 <- eBayes(fit2)
+  fit2 <- eBayes(fit2,trend = TRUE)
   
   # 获取差异结果 
   tempOutput <- topTable(fit2, coef = con, n = Inf)
@@ -89,7 +92,7 @@ run_limma_DE <- function(exprSet, colData, group_1, group_2, log2,
   table(DE_res$Sig)
   # down stable     up 
   #  749  25664    378 
-  result_merge <- merge(2^target_data-1, DE_res, by = "row.names", all.y = TRUE)
+  result_merge <- merge(target_data, DE_res, by = "row.names", all.y = TRUE)
   
   write.csv(result_merge,file = paste0(output_dir,"/DE.csv"))
   
@@ -120,9 +123,9 @@ run_limma_DE <- function(exprSet, colData, group_1, group_2, log2,
         "stable" = "grey",     # 灰
         "down" = "#003366"),    # 蓝,
       labels = c(                                  # 显示上下调的个数
-        "up" = paste0("Up ：", sum(DE_res$Sig == "up")),
-        "stable" = paste0("Stable ：", sum(DE_res$Sig == "stable")),
-        "down" = paste0("Down ：", sum(DE_res$Sig == "down"))))+
+        "up" = paste0("Up: ", sum(DE_res$Sig == "up")),
+        "stable" = paste0("Stable: ", sum(DE_res$Sig == "stable")),
+        "down" = paste0("Down: ", sum(DE_res$Sig == "down"))))+
     geom_vline(xintercept = c(-logfc_threshold, logfc_threshold), lty = 4, 
                col = "black", lwd = 0.8,alpha=0.4) +
     geom_hline(yintercept = -log10(pvalue_threshold), lty = 4, 

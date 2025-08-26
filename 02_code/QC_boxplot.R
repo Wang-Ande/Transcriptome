@@ -48,6 +48,6 @@ QC_boxplot <- function(data, data_group = NULL, value_colour = NULL, title) {
       theme(axis.text.x = element_text(angle = 90, hjust = 1, colour = "black", size = 10),
             axis.text.y = element_text(hjust = 1, colour = "black", size = 10),
             plot.title = element_text(hjust = 0.5)) +
-      labs(x = "", title = title)
+      labs(x = "", y = "log2(TPM+1)", title = title)
   }
 }

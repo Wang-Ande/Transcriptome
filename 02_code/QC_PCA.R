@@ -31,8 +31,12 @@ QC_PCA <- function(data, data_group = NULL, value_colour = NULL) {
                  geom.ind = c("text", "point"), # show points only (but not "text")
                  col.ind = group_list, # color by groups
                  palette = value_colour,
+                 pointshape = 16,
+                 pointsize = 1,
+                 alpha.ind = 0.85,
                  addEllipses = TRUE, # Concentration ellipses
-                 legend.title = "Groups"
+                 legend.title = "Groups",
+                 labelsize = 4
     ) +
       theme_classic()
   }

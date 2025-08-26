@@ -6,6 +6,7 @@ run_GoKegg_Enrich <- function(Genelist,
                               kegg_db = 'hsa') {
   library(clusterProfiler)
   library(ggplot2)
+  library(openxlsx)
   library(enrichplot)
   library(org.Hs.eg.db)
   library(KEGG.db)
@@ -53,14 +54,14 @@ run_GoKegg_Enrich <- function(Genelist,
     enrich_kegg <- setReadable(enrich_kegg, OrgDb = go_db, keyType = "ENTREZID")
     
     # 写出 GO 结果
-    write.csv(enrich_go@result, file = file.path(Output_dir, paste0("GO_", tag, ".csv")), quote = FALSE, row.names = FALSE)
+    write.xlsx(enrich_go@result, file = file.path(Output_dir, paste0("GO_", tag, ".xlsx")), rowNames = FALSE)
     pdf(file = file.path(Output_dir, paste0("GO_", tag, ".pdf")), width = 5.5, height = 7)
     print(dotplot(enrich_go, showCategory = 5, color = "pvalue", split = "ONTOLOGY") +
             facet_grid(ONTOLOGY ~ ., scale = 'free', space = 'free'))
     dev.off()
     
     # 写出 KEGG 结果
-    write.csv(enrich_kegg@result, file = file.path(Output_dir, paste0("KEGG_", tag, ".csv")), quote = FALSE, row.names = FALSE)
+    write.xlsx(enrich_kegg@result, file = file.path(Output_dir, paste0("KEGG_", tag, ".xlsx")), rowNames = FALSE)
     pdf(file = file.path(Output_dir, paste0("KEGG_", tag, ".pdf")), width = 6, height = 5)
     print(dotplot(enrich_kegg, showCategory = 10, color = "pvalue"))
     dev.off()

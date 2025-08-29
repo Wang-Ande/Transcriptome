@@ -1,6 +1,6 @@
 # 0. Rm workspace ----
 rm(list=ls())
-setwd("../AML_project/aml_analysis")
+# setwd("../AML_project/aml_analysis")
 
 # 1. Library packages ----
 #BiocManager::install("msigdbr")
@@ -14,12 +14,16 @@ library(dplyr)
 library(reshape2)
 library(ggplot2)
 library(ggridges)
+library(KEGG.db)
 
 # 2. Set output path ----
-dir <- "./03_result/GSEA/OCI_AML2/MsigDBR_GSEA/WT_2W/"
+dir <- "./03_result/04_GSEA/MOLM13/High_vs_WT/"
+if (!dir.exists(dir)) {
+  dir.create(dir, recursive = TRUE)
+}
 
 # 3. Preranked gene list ----
-data_gene <- read.csv("03_result/DE_limma/MOLM13_2W_vs_MOLM13_WT/DE.csv")
+data_gene <- read.csv("03_result/02_DE/MOLM13/High_vs_WT/DE.csv")
 head(data_gene)
 colnames(data_gene) 
 
@@ -61,11 +65,11 @@ names(geneList) <- data_all_sort$ENTREZID
 # msigdbr基因集中没有KEGG集，需要单独做
 # database set 
 KEGG_database="hsa"
-
 # gsea analysis 
 KEGG_GSEA <- gseKEGG(geneList, 
                      organism = KEGG_database, 
-                     pvalueCutoff = 0.05,
+                     use_internal_data = T,
+                     pvalueCutoff = 0.5,   # 实际上是adjp，为了显示更多p<0.05的通路，设置为0.5
                      eps = 0,
                      nPermSimple = 10000) # 随机排列次数，提高结果准确性
 KEGG_GSEA<- setReadable(KEGG_GSEA,        # 转换可读基因名
@@ -76,9 +80,8 @@ table(KEGG_GSEA@result$pvalue<0.05)      # 查看有多少个通路富集出来
 
 # res output
 KEGG_results <- as.data.frame(KEGG_GSEA)
-write.csv(KEGG_results,file = paste0(dir,"KEGG_results.csv"),
-          row.names = FALSE)
-save(KEGG_GSEA, file = paste0(dir,"gsea_result.RData"))   # S4 res
+write.xlsx(KEGG_results,file = paste0(dir,"KEGG_results.xlsx"))
+save(KEGG_GSEA, file = paste0(dir,"KEGG_result.RData"))   # S4 res
 
 # plot 
 load("./03_Result/GSEA/MOLM13/VEN_VS_WT/kegg_result.RData")
@@ -91,7 +94,7 @@ dev.off()
 
 # 5. MsigDBR_GSEA ---- 
 
-## H ----
+## H: hallmark gene sets ----
 sigDBGR_H <- msigdbr(species = "Homo sapiens",
                      category = "H") %>%
   dplyr::select(gs_name, entrez_gene)
@@ -100,7 +103,7 @@ gsea_results_h <- GSEA(geneList,
                        TERM2GENE = sigDBGR_H,       # 预设基因集
                         minGSSize = 1,          # 最小基因集大小
                         maxGSSize = 500,        # 最大基因集大小
-                        pvalueCutoff = 0.05,    # p 值阈值
+                        pvalueCutoff = 0.5,    # 实际上是adjp，为了显示更多p<0.05的通路，设置为0.5
                         pAdjustMethod = "BH")   # p 值调整方法
 # 设置为可读格式 
 gsea_results_h <- setReadable(gsea_results_h, 
@@ -112,15 +115,15 @@ table(gsea_results_h@result$pvalue < 0.05)
 
 # 结果导出
 h_results <- as.data.frame(gsea_results_h)
-write.csv(h_results,file = paste0(dir,"H_results.csv"),
-          row.names = FALSE)
+write.xlsx(h_results,file = paste0(dir,"Hallmark_results.xlsx"))
+save(gsea_results_h, file = paste0(dir,"Hallmark_result.RData"))   # S4 res
 
 # 可视化
 #dotplot(gsea_results_h, showCategory = Inf, label_format = 100)
 #ridgeplot(gsea_results_h, label_format = 100)
 #gseaplot2(gsea_results_h, 1, pvalue_table = TRUE)  # 这里的 `1` 是基因集的索引
 
-## C1 ----
+## C1: positional gene sets ----
 sigDBGR_C1 <- msigdbr(species = "Homo sapiens",
                      category = "C1") %>%
   dplyr::select(gs_name, entrez_gene)
@@ -129,7 +132,7 @@ gsea_results_C1 <- GSEA(geneList,
                        TERM2GENE = sigDBGR_C1,       # 预设基因集
                        minGSSize = 1,          # 最小基因集大小
                        maxGSSize = 500,        # 最大基因集大小
-                       pvalueCutoff = 0.05,    # p 值阈值
+                       pvalueCutoff = 0.5,    # 实际上是adjp，为了显示更多p<0.05的通路，设置为0.5
                        pAdjustMethod = "BH")   # p 值调整方法
 # 设置为可读格式 
 gsea_results_C1 <- setReadable(gsea_results_C1, 
@@ -149,7 +152,7 @@ write.csv(C1_results,file = paste0(dir,"C1_results.csv"),
 #ridgeplot(gsea_results_C1, label_format = 100)
 #gseaplot2(gsea_results_C1, 1, pvalue_table = TRUE)
 
-## C2 ----
+## C2: curated gene sets ----
 sigDBGR_C2 <- msigdbr(species = "Homo sapiens",
                       category = "C2") %>%
   dplyr::select(gs_name, entrez_gene)
@@ -158,7 +161,8 @@ gsea_results_C2 <- GSEA(geneList,
                        TERM2GENE = sigDBGR_C2,       # 预设基因集
                        minGSSize = 1,          # 最小基因集大小
                        maxGSSize = 500,        # 最大基因集大小
-                       pvalueCutoff = 0.05,    # p 值阈值
+                       eps = 0,                # 防止p值过小
+                       pvalueCutoff = 0.5,     # 实际上是adjp，为了显示更多p<0.05的通路，设置为0.5
                        pAdjustMethod = "BH")   # p 值调整方法
 # 设置为可读格式 
 gsea_results_C2 <- setReadable(gsea_results_C2, 
@@ -170,9 +174,8 @@ table(gsea_results_C2@result$pvalue < 0.05)
 
 # 结果导出
 C2_results <- as.data.frame(gsea_results_C2)
-write.csv(C2_results,file = paste0(dir,"C2_results.csv"),
-          row.names = FALSE)
-
+write.xlsx(C2_results,file = paste0(dir,"C2_results.xlsx"))
+save(gsea_results_C2, file = paste0(dir,"C2_result.RData"))   # S4 res
 # 可视化
 #dotplot(gsea_results_C2, showCategory = Inf, label_format = 100)
 #ridgeplot(gsea_results_C2, label_format = 100)
@@ -236,7 +239,7 @@ write.csv(C4_results,file = paste0(dir,"C4_results.csv"),
 #ridgeplot(gsea_results_C4, label_format = 100)
 #gseaplot2(gsea_results_C4, 1, pvalue_table = TRUE)
 
-## C5 ----
+## C5: GO gene sets ----
 sigDBGR_C5 <- msigdbr(species = "Homo sapiens",
                       category = "C5") %>%
   dplyr::select(gs_name, entrez_gene)
@@ -245,7 +248,8 @@ gsea_results_C5 <- GSEA(geneList,
                        TERM2GENE = sigDBGR_C5,       # 预设基因集
                        minGSSize = 1,          # 最小基因集大小
                        maxGSSize = 500,        # 最大基因集大小
-                       pvalueCutoff = 0.05,    # p 值阈值
+                       eps = 0,                # 防止p值过小
+                       pvalueCutoff = 0.5,    # 实际上是adjp，为了显示更多p<0.05的通路，设置为0.5
                        pAdjustMethod = "BH")   # p 值调整方法
 # 设置为可读格式 
 gsea_results_C5 <- setReadable(gsea_results_C5, 
@@ -257,15 +261,14 @@ table(gsea_results_C5@result$pvalue < 0.05)
 
 # 结果导出
 C5_results <- as.data.frame(gsea_results_C5)
-write.csv(C5_results,file = paste0(dir,"C5_results.csv"),
-          row.names = FALSE)
-
+write.xlsx(C5_results,file = paste0(dir,"C5_results.xlsx"))
+save(gsea_results_C5, file = paste0(dir,"C5_result.RData"))   # S4 res
 # 可视化
 #dotplot(gsea_results_C5, showCategory = Inf, label_format = 100)
 #ridgeplot(gsea_results_C5, label_format = 100)
 #gseaplot2(gsea_results_C5, 1, pvalue_table = TRUE)
 
-## C6 ----
+## C6: oncogenic signatures ----
 sigDBGR_C6 <- msigdbr(species = "Homo sapiens",
                       category = "C6") %>%
   dplyr::select(gs_name, entrez_gene)
@@ -274,7 +277,7 @@ gsea_results_C6 <- GSEA(geneList,
                         TERM2GENE = sigDBGR_C6,       # 预设基因集
                         minGSSize = 1,          # 最小基因集大小
                         maxGSSize = 500,        # 最大基因集大小
-                        pvalueCutoff = 0.05,    # p 值阈值
+                        pvalueCutoff = 0.5,    # 实际上是adjp，为了显示更多p<0.05的通路，设置为0.5
                         pAdjustMethod = "BH")   # p 值调整方法
 # 设置为可读格式 
 gsea_results_C6 <- setReadable(gsea_results_C6, 
@@ -286,9 +289,8 @@ table(gsea_results_C6@result$pvalue < 0.05)
 
 # 结果导出
 C6_results <- as.data.frame(gsea_results_C6)
-write.csv(C6_results,file = paste0(dir,"C6_results.csv"),
-          row.names = FALSE)
-
+write.xlsx(C6_results,file = paste0(dir,"C6_results.xlsx"))
+save(gsea_results_C6, file = paste0(dir,"C6_result.RData"))   # S4 res
 # 可视化
 #dotplot(gsea_results_C6, showCategory = Inf, label_format = 100)
 #ridgeplot(gsea_results_C6, label_format = 100)

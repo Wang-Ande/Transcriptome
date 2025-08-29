@@ -7,6 +7,10 @@
 *.rds
 *.xlsx
 *.csv
+*.pdf
+*.txt
+*.zip
+*.svg
 
 # R 相关
 .Rhistory

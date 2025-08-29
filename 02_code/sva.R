@@ -1,5 +1,5 @@
 # Introduction
-此脚本使用sva包combat函数以去除批次效应
+# 此脚本使用sva包combat函数以去除批次效应
 
 # 1. Library packages ----
 library(readr)
@@ -17,12 +17,11 @@ source("./02_code/QC_PCA.R")
 
 # 2. Data input ----
 ## 2.1 expr input ----
-data_batch1 <- read_csv("./01_data/Counts_data/gene_count_matrix(fuben).csv")
-data_batch2 <- read_csv("./01_data/Counts_data/gene_count_matrix_1.csv")
+data_raw <- read.csv("../../Novogene/Venetoclax_WN/gene_count_matrix.csv", row.names = 1)
+data_batch1 <- data_raw[,-c(7,8,13,25)]
+data_batch2 <- data_raw[,c(1,7,8,13,25)]
 
 # process data
-colnames(data_batch1) <- gsub("-","_",colnames(data_batch1))
-colnames(data_batch2) <- gsub("-","_",colnames(data_batch2))
 data_merge <- merge(data_batch1,data_batch2,by = "gene_id")
 data_merge <- as.data.frame(data_merge)
 rownames(data_merge) <- data_merge$gene_id
@@ -157,24 +156,47 @@ pdf(paste0(dir_cor,'MV4_11_sample_correlation.pdf'), width = 10, height = 10)
 dev.off() 
 
 # 4. Sva::ComBat ----
-## 4.1 design ----
-data_group_all$biological <- paste0(data_group_all$Cell,"_",data_group_all$Condition)
-data_group_all$biological <- factor(data_group_all$biological, levels = c("MOLM13_2W", "MOLM13_6W", "MOLM13_WT",
-                                                                          "MV4_11_2W", "MV4_11_6W", "MV4_11_WT",
+data_raw <- read.csv("../../Novogene/Venetoclax_WN/gene_tpm_matrix.csv", row.names = 1)
+data_raw <- data_raw[,-22] # 去除4w样本
+data_batch1 <- data_raw[,-c(7,8,13,24)]
+data_batch2 <- data_raw[,c(1,7,8,13,24)]
 
-                                                                                                                                                    "OCI_AML2_2W", "OCI_AML2_6W", "OCI_AML2_WT"))
+# process data
+data_merge <- merge(data_batch1,data_batch2,by = "gene_id")
+data_merge <- as.data.frame(data_merge)
+rownames(data_merge) <- data_merge$gene_id
+data_merge <- subset(data_merge,select = -c(gene_id))
+data_merge <- data_merge[,order(colnames(data_merge))]
+## 4.1 design ----
+sample_info <- read.csv("./01_data/Sample_info/data_group_annotation.csv",row.names = 1)
+sample_info <- sample_info[-grep("4W",sample_info$id),] # 删除4w样本
+sample_info <- sample_info[order(rownames(sample_info)),]
+# 创建组合因子
+sample_info$biological <- factor(paste0(sample_info$Cell,"_",sample_info$Condition))
+# 设计矩阵
 design <- model.matrix(~1 + as.factor(group), data=data_group_all) # 0 + 不选择截距项
 rownames(design) <- data_group_all$id
 
 ## 4.2 adjust batch ----
-combat_data <- ComBat(dat = cpm_data, 
-                      batch = data_group_all$batch, 
-                      mod = design, 
-                      par.prior = TRUE)
+## combat
+combat_data <- ComBat(dat = as.matrix(data_merge),          # 基因 x 样本 
+                      batch = sample_info$Batch,            # 批次信息
+                      mod = model.matrix(~ biological, data = sample_info),  # 保留生物学效应
+                      par.prior = TRUE,                      # 使用参数先验
+                      prior.plots = FALSE)
                       #ref.batch = "Batch1")
 combat_data <- as.data.frame(combat_data)
 combat_data[combat_data < 0] <- 0
-## 4.3 res output ----
-write.csv(combat_data,file = "./01_data/Cpm_data/IC50_merged_adjusted.csv")
 
+## removebatcheffect
+tpm_corrected <- removeBatchEffect(data_merge,
+                                   batch = sample_info$Batch,
+                                   design = model.matrix(~ biological, data = sample_info)
+)
+tpm_corrected <- as.data.frame(tpm_corrected)
+tpm_corrected[tpm_corrected < 0] <- 0
+
+## 4.3 res output ----
+write.csv(combat_data,file = "../../Novogene/Venetoclax_WN/tpm_combat_adjusted.csv")
+write.csv(tpm_corrected,file = "../../Novogene/Venetoclax_WN/tpm_limma_adjusted.csv")
 

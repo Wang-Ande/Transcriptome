@@ -24,13 +24,18 @@ source("02_code/run_GoKegg_Enrich.R")
 ## 2.1 Expr input ----
 exprSet <- read.csv("./01_data/gene_count_matrix.csv", row.names = 1)
 exprSet <- as.data.frame(exprSet)
-exprSet <- exprSet[,-grep('MOLM13|MV4',colnames(exprSet))]
+exprSet <- exprSet[,-grep('OCI|MOLM13',colnames(exprSet))]
 ## OCI 细胞系去除4w
-# exprSet <- exprSet[,-4]
+exprSet <- exprSet[,-4]
 
 ## 2.3 Filter low genes ----
+# 去除非编码蛋白
+source("../../Code_Box/Transcriptome/run_filter_coding_gene.R")
+exprSet <- filter_coding_genes(exprSet)
+exprSet <- exprSet[,!colnames(exprSet)%in%c("ense","symbol")]
+
 # approach 1
-min_sample <- 3
+min_sample <- ceiling(length(colnames(exprSet)) / 2)  # 向上取整
 exprSet_filtered <- exprSet[rowSums(exprSet > 10) >= min_sample,]  
 dim(exprSet_filtered)
 
@@ -39,23 +44,11 @@ exprSet_log2 <- log2(exprSet+1)
 exprSet_filtered <- exprSet_log2[apply(exprSet_log2,1,mean)>1,] # 13454
 exprSet_filtered <- 2^exprSet_filtered-1
 
-# 提取编码蛋白基因
-#gtf_file <- "01_data/Homo_sapiens.GRCh38.113.gtf/Homo_sapiens.GRCh38.113.gtf"
-#txdb <- makeTxDbFromGFF("01_data/Homo_sapiens.GRCh38.113.gtf/Homo_sapiens.GRCh38.113.gtf", format = "gtf")
-
-#txdb <- makeTxDbFromGFF(gtf_file, format = "gtf")
-#gene_info <- genes(txdb)
-
-#gtf_data <- import(gtf_file)
-#head(mcols(gtf_data))
-#coding_genes <- gtf_data[gtf_data$gene_biotype == "protein_coding", ]
-#coding_gene_ids <- unique(coding_genes$gene_id)
-
 ## 2.4 Group input ----
 colData <- read_xlsx("./01_data/group_info.xlsx")
 colData <- as.data.frame(colData)
 colnames(colData)
-colData <- colData[-grep('MOLM13|MV4',colData$id),-3]
+colData <- colData[-grep('OCI|MOLM13',colData$id),-3]
 ## OCI 细胞系去除4w
 colData <- colData[-4,]
 
@@ -64,7 +57,7 @@ rownames(colData) <- colData$id
 table(colData$group) 
 
 ## 2.5 Group design ----
-group_1 <- "Low"    # group 1为实验组
+group_1 <- "High"    # group 1为实验组
 group_2 <- "WT"     # group 2为对照组
 targeted_group <- colData
 targeted_data <- as.data.frame(exprSet_filtered) 
@@ -79,15 +72,15 @@ result_merge <- run_limma_DE(exprSet = targeted_data,
                              logfc_threshold = 1,        # "1"、"0.585"、"0.263"
                              pvalue_threshold = 0.05, 
                              qvalue_threshold = NULL,
-                             dir = "03_result/02_DE/OCI/")
+                             dir = "03_result/02_DE/MV4")
 table(result_merge$DE_res$Sig)
 # 导出gene symbol
-DE_Genes <- read.csv('./03_result/02_DE/OCI/Low_vs_WT/DE.csv', row.names = 1)
+DE_Genes <- read.csv('./03_result/02_DE/MV4/High_vs_WT/DE.csv',row.names = 1)
 y <- DE_Genes$Row.names
 gene <- unlist(lapply(y,function(y) strsplit(as.character(y),"\\|")[[1]][2]))
 DE_Genes$gene <- gene
 DE_Genes <- DE_Genes[,c("gene","logFC","P.Value","adj.P.Val","Sig")]
-write.xlsx(DE_Genes, file = "./03_result/02_DE/OCI/Low_vs_WT/DE_Gene_Names.xlsx")
+write.xlsx(DE_Genes, file = "./03_result/02_DE/MV4/High_vs_WT/DE_Gene_Names.xlsx")
 
 # 3. GO KEGG --------------------------------------------------------------
 
@@ -127,7 +120,7 @@ for (de_file in DE_files) {
   tryCatch({
     Enrich_Res <- run_GoKegg_Enrich(Genelist = genelist,
                                     pvalue = 0.05,
-                                    logfc = 1,
+                                    logfc = 0.5,
                                     go_db = GO_database,
                                     kegg_db = KEGG_database,
                                     Output_dir = out_dir)

@@ -41,14 +41,14 @@ run_GoKegg_Enrich <- function(Genelist,
                           OrgDb = go_db,
                           keyType = "ENTREZID",
                           ont = "ALL",
-                          pvalueCutoff = 0.05,
+                          pvalueCutoff = 0.5,
                           qvalueCutoff = 1,
                           readable = TRUE)
     
     enrich_kegg <- enrichKEGG(gene = gene_entrez$ENTREZID,
                               organism = kegg_db,
                               keyType = "kegg",
-                              pvalueCutoff = 0.05,
+                              pvalueCutoff = 0.5,
                               qvalueCutoff = 1,
                               use_internal_data = TRUE)
     enrich_kegg <- setReadable(enrich_kegg, OrgDb = go_db, keyType = "ENTREZID")

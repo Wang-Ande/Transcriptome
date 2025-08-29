@@ -20,15 +20,24 @@ library(openxlsx)
 
 # 2. Data input ----
 # expr input(standardised)
-expr <- read.csv("./03_result/02_DE/OE_ZBTB7A_vs_Control/DE.csv",row.names = 1)
+expr <- read.csv("./01_data/gene_tpm_matrix.csv",row.names = 1)
 colnames(expr)
-expr <- expr[expr$Sig != "stable",c(1:11)]
+expr <- expr[,-grep("OCI_4W",colnames(expr))]
+expr <- expr[,-grep('MOLM13|MV4',colnames(expr))]
 
-y <- expr$Row.names
+# expr <- expr[expr$Sig != "stable",c(1:11)]
+# 用anova结果
+DE_gene <- read.csv("./03_result/05_ANOVA/Result_table.csv", row.names = 1)
+sig_welch <- subset(DE_gene, Welch_FDR < 0.05)
+# top5000 <- sig_welch[order(sig_welch$Welch_FDR), ][1:5000, ]
+expr <- expr[rownames(expr)%in%rownames(sig_welch),]
+
+# 提取gene名
+y <- rownames(expr)
 gene <- unlist(lapply(y,function(y) strsplit(as.character(y),"\\|")[[1]][2]))
 expr$gene <- gene 
-expr <- expr[,-1]
 rownames(expr) <- expr$gene
+expr <- expr[,!colnames(expr)%in%c("gene")]
 # 若提示有重复，进行去重处理
 # 1. 处理 NA 值
 expr <- expr[!is.na(expr$gene), ]  # remove NA rows
@@ -43,6 +52,8 @@ expr <- expr[,-1]
 # group input
 sample_group <- read.xlsx("./01_data/group_info.xlsx")
 rownames(sample_group) <- sample_group$id
+sample_group <- sample_group[-grep("OCI_4W",sample_group$id),]
+sample_group <- sample_group[-grep('MOLM13|MV4',sample_group$id),]
 table(sample_group$group)
 
 # check
@@ -65,8 +76,8 @@ library(limma)
 colnames(expr_log2) <- sample_group$group    # 修改表达矩阵的列名
 avereps_df <- t(limma::avereps(t(expr_log2) , ID = colnames(expr_log2))) #对用一组的表达值取平均
 head(avereps_df)
-avereps_df <- avereps_df[,order(colnames(avereps_df))]    # 设置聚类方向
-save(avereps_df,file = './03_result/04_K-Means/OE-ZBTB7A_vs_Control/avereps_df.Rdata')
+avereps_df <- avereps_df[,order(colnames(avereps_df),decreasing = T)]    # 设置聚类方向
+save(avereps_df,file = './03_result/07_C-Means/Control-Low-High/avereps_df.Rdata')
 
 ### 2.2.2 approach 2 -----------------------------------------------------------
 # 处理列名，去掉 `.1`, `.2` 这种后缀
@@ -82,14 +93,14 @@ avereps_df <- expr_molm13
 
 # 3. Cluster Analysis ----
 ## 3.1 Set output path ----
-dir_cl <- "./03_result/04_K-Means/OE-ZBTB7A_vs_Control/"
+dir_cl <- "./03_result/07_C-Means/Control-Low-High/"
 exps <- as.matrix(avereps_df) 
 
 # check optimal cluster numbers
 pdf(paste0(dir_cl,"Elbow_plot.pdf"),width = 6,height = 5)
 getClusters(obj = exps)
 dev.off()
-# choose cluster.num =  4
+# choose cluster.num =  5
 
 ## 3.2 mfuzz for clustering ----
 cm <- clusterData(obj = exps,
@@ -98,6 +109,9 @@ cm <- clusterData(obj = exps,
                   cluster.method = "mfuzz",
                   cluster.num = 4)
 save(cm,file = paste0(dir_cl,"C-Means_res.Rdata"))
+# 输出excel格式，方便查看
+write.xlsx(cm$wide.res, file = paste0(dir_cl,"C-Means_res.xlsx"))
+
 
 ## 3.3 kmeans for clustering ----
 km <- clusterData(obj = as.data.frame(exps),
@@ -115,13 +129,13 @@ visCluster(object = cm,
            plot.type = "line")
 
 # change color
-visCluster(object = km,
+visCluster(object = cm,
            plot.type = "line",
            ms.col = c("green","orange","red"))
 
 # remove meadian line
 cairo_pdf(paste0(dir_cl,"Cluster_lineplot.pdf"),width = 8.5,height = 5)
-visCluster(object = km,
+visCluster(object = cm,
            plot.type = "line",
            add.mline = FALSE)
 dev.off()
@@ -137,7 +151,7 @@ dev.off()
 library(org.Hs.eg.db)
 
 ##  5.1 enrich for clusters ----
-enrich <- enrichCluster(object = km,
+enrich <- enrichCluster(object = cm,
                         OrgDb = org.Hs.eg.db,
                         type = "BP",
                         id.trans = TRUE,
@@ -158,7 +172,7 @@ cl_num <- 4   # ggsci::pal_d3()(cl_num)
 ## 5.2 plot ----
 cairo_pdf(paste0(dir_cl,'Cluster_enrichplot.pdf'),
           height = 6.5,width = 11,onefile = F)
-visCluster(object = km,
+visCluster(object = cm,
            plot.type = "both",
            column_names_rot = 45,
            show_row_dend = F,
@@ -174,10 +188,10 @@ dev.off()
 # The above fun() only shows the top 5 pathways, so we need the next fun() to display all pathways.
 # Gene prepare
 # source("./02_Code/Extract_genes.R")   # c-means专用
-load("./03_result/04_K-Means/OE-ZBTB7A_vs_Control/K-Means_res.Rdata")
+load("./03_result/06_K-Means/Control-Low-High/K-Means_res.Rdata")
 
 # subset target cluster gene
-targeted_genes <- km$wide.res[km$wide.res$cluster == 2,]
+targeted_genes <- km$wide.res[km$wide.res$cluster == 3,]
 
 # set database
 GO_database <- 'org.Hs.eg.db' 
@@ -215,7 +229,13 @@ GO_res <- result$enrichGO
 KEGG_res <- result$enrichKEGG
 
 # Res output
-dir_enrich <- "./03_result/04_K-Means/OE-ZBTB7A_vs_Control/Cluster_2/"
+dir_enrich <- "./03_result/06_K-Means/Control-Low-High/Cluster_3/"
+if (!dir.exists(dir_enrich)) {
+  dir.create(dir_enrich)
+  print(paste("Folder", dir_enrich, "created."))
+} else {
+  print(paste("Folder", dir_enrich, "already exists."))
+}
 if(T){
 # output enrichGO 
 write.xlsx(GO_res@result, file = paste0(dir_enrich, "GO.xlsx"))

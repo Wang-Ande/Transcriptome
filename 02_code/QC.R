@@ -145,7 +145,7 @@ p1 <- ggplot(corr_long, aes(Var1, Var2, fill = value)) +
   geom_tile() +
   scale_fill_gradientn(colors = c("#D1E5F0", "#2166AC"), 
                        limits = c(min(corr_matrix), 1),                  # 设定颜色映射范围
-                       name = expression(R)) +            # 更改图例标题为 R²
+                       name = expression(R)) +            # 更改图例标题为 R
   geom_text(aes(label = sprintf("%.2f", value)), size = 3, color = "white") +   # 显示相关系数，保留2位小数
   labs(title = "Pearson correlation between samples") +     # 添加标题
   theme_minimal() +

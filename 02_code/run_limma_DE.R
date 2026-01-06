@@ -140,7 +140,65 @@ run_limma_DE <- function(exprSet, colData, group_1, group_2, log2,
          plot = p, device = "pdf", 
          width = 6, height = 5)
   
+  ### --------------------------
+  ### 生成差异分析报告 (txt)
+  ### --------------------------
   
-  # 热图 
+  report_file <- paste0(output_dir, "/DE_report.txt")
+  timestamp <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+  
+  # 基本统计
+  total_gene <- nrow(result_merge)
+  up_gene <- sum(result_merge$Sig == "up", na.rm = TRUE)
+  down_gene <- sum(result_merge$Sig == "down", na.rm = TRUE)
+  stable_gene <- sum(result_merge$Sig == "stable", na.rm = TRUE)
+  
+  # 提取显著上下调基因Top 5
+  sig_up <- result_merge %>% filter(Sig == "up") %>% arrange(P.Value) %>% head(10)
+  sig_down <- result_merge %>% filter(Sig == "down") %>% arrange(P.Value) %>% head(10)
+  
+  sink(report_file)
+  cat("============================================\n")
+  cat("          差异表达分析报告 (run_limma_DE)\n")
+  cat("============================================\n")
+  cat("分析时间: ", timestamp, "\n\n")
+  
+  cat("【比较分组】\n")
+  cat("Group 1: ", group_1, "\n")
+  cat("Group 2: ", group_2, "\n\n")
+  
+  cat("【分析参数】\n")
+  cat("log2 transform: ", log2, "\n")
+  cat("logFC 阈值: ", logfc_threshold, "\n")
+  cat("P value 阈值: ", pvalue_threshold, "\n")
+  if (!is.null(qvalue_threshold)) cat("Q value 阈值: ", qvalue_threshold, "\n")
+  cat("\n")
+  
+  cat("【结果统计】\n")
+  cat("总基因数: ", total_gene, "\n")
+  cat("上调基因数: ", up_gene, "\n")
+  cat("下调基因数: ", down_gene, "\n")
+  cat("未显著变化基因数: ", stable_gene, "\n\n")
+  
+  if (up_gene > 0) {
+    cat("【显著上调基因 Top 10】\n")
+    print(sig_up[, c("Row.names", "logFC", "P.Value", "adj.P.Val")])
+    cat("\n")
+  }
+  if (down_gene > 0) {
+    cat("【显著下调基因 Top 10】\n")
+    print(sig_down[, c("Row.names", "logFC", "P.Value", "adj.P.Val")])
+    cat("\n")
+  }
+  
+  cat("--------------------------------------------\n")
+  cat("【输出文件】\n")
+  cat("- 差异结果表: ", paste0(output_dir, "/DE.csv"), "\n")
+  cat("- 火山图: ", paste0(output_dir, "/volc.pdf"), "\n")
+  cat("- voom图: ", paste0(output_dir, "/voom_plot.pdf"), "\n")
+  cat("- 报告文件: ", report_file, "\n")
+  cat("============================================\n")
+  sink()
+  
   return(list(result_merge = result_merge, DE_res = DE_res))
 }

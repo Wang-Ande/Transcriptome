@@ -25,7 +25,9 @@ source("02_code/run_GoKegg_Enrich.R")
 exprSet <- read.csv("./01_data/gene_count_matrix.csv", row.names = 1)
 exprSet <- as.data.frame(exprSet)
 exprSet <- exprSet[,-grep('OCI|MOLM13',colnames(exprSet))]
-## OCI 细胞系去除4w
+## OCI 细胞系去除 4w
+exprSet <- exprSet[,-4]
+## MV4 细胞系去除 6w_1
 exprSet <- exprSet[,-4]
 
 ## 2.3 Filter low genes ----
@@ -51,13 +53,15 @@ colnames(colData)
 colData <- colData[-grep('OCI|MOLM13',colData$id),-3]
 ## OCI 细胞系去除4w
 colData <- colData[-4,]
+## MV4 细胞系去除 6w_1
+colData <- colData[-4,]
 
 # 整理样本
 rownames(colData) <- colData$id
 table(colData$group) 
 
 ## 2.5 Group design ----
-group_1 <- "High"    # group 1为实验组
+group_1 <- "Low"    # group 1为实验组
 group_2 <- "WT"     # group 2为对照组
 targeted_group <- colData
 targeted_data <- as.data.frame(exprSet_filtered) 
@@ -75,12 +79,12 @@ result_merge <- run_limma_DE(exprSet = targeted_data,
                              dir = "03_result/02_DE/MV4")
 table(result_merge$DE_res$Sig)
 # 导出gene symbol
-DE_Genes <- read.csv('./03_result/02_DE/MV4/High_vs_WT/DE.csv',row.names = 1)
+DE_Genes <- read.csv('./03_result/02_DE/MV4/Low_vs_WT/DE.csv',row.names = 1)
 y <- DE_Genes$Row.names
 gene <- unlist(lapply(y,function(y) strsplit(as.character(y),"\\|")[[1]][2]))
 DE_Genes$gene <- gene
 DE_Genes <- DE_Genes[,c("gene","logFC","P.Value","adj.P.Val","Sig")]
-write.xlsx(DE_Genes, file = "./03_result/02_DE/MV4/High_vs_WT/DE_Gene_Names.xlsx")
+write.xlsx(DE_Genes, file = "./03_result/02_DE/MV4/Low_vs_WT/DE_Gene_Names.xlsx")
 
 # 3. GO KEGG --------------------------------------------------------------
 
